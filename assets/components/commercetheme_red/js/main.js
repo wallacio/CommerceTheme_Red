@@ -2,6 +2,7 @@
     let cart, checkout;
     onReady(function () {
         initializeMatrixSelects();
+        initialiseSimpleVariantSelects();
 
         cart = document.querySelector('.c-checkout-cart');
         if (cart) {
@@ -289,29 +290,51 @@
                     }
                 });
 
-                updateColumnOptions();
-                rowSelect.addEventListener('change', updateColumnOptions);
-                colSelect.addEventListener('change', updateSelectedProduct);
+                // Initialise the column options
+                rebuildColumnOptions();                
 
-                function updateColumnOptions() {
+                rowSelect.addEventListener('change', rebuildColumnOptions);
+                colSelect.addEventListener('change', function(){
+                    updateSelectedProduct(colSelect, priceDisplay, stockDisplay, skuDisplay, imageDisplay)
+                });
+
+
+                /**
+                 * Remove <option> elements from the given <select> element
+                 * @param {HTMLElement} colSelect 
+                 */
+                function removeSelectOptions(colSelect) {
+                    let colCount = colSelect.options.length;
+                    // start at the end first!
+                    for (i = colCount-1; i >= 0; i--) {
+                        colSelect.options[i] = null;
+                    }
+                }
+
+                /**
+                 * Rebuilds the matrix column <select> element with <option> elements
+                 * appropriate to the selected matrix row.
+                 */
+                function rebuildColumnOptions() {
+                    // We have a copy of the <option> elements from the column <select>
+                    // in the colSelect variable, so now let's detach them from the <select> element.                    
+                    removeSelectOptions(colSelect);
                     let selectedRow = rowSelect.value,
-                        targetClass = 'matrix-row-' + selectedRow + '-product',
                         firstAvlOpt = '';
 
-                    colOptions.forEach(function (colOpt, index) {
-                        if (colOpt.value === '' || colOpt.className.indexOf(targetClass) !== -1) {
-                            colOpt.style.display = 'initial';
+                    colOptions.forEach(function(colOpt, index){
+                        if (colOpt.getAttribute('data-row') === selectedRow || colOpt.value === '' ) {
+                            colSelect.appendChild(colOpt);
                             if (firstAvlOpt === '') {
                                 firstAvlOpt = colOpt.value;
                             }
                         }
-                        else {
-                            colOpt.style.display = 'none';
-                        }
+
                     });
                     colSelect.value = firstAvlOpt;
-                    updateSelectedProduct();
-                }
+                    updateSelectedProduct(colSelect, priceDisplay, stockDisplay, skuDisplay, imageDisplay);
+                    
+                }                
 
                 function updateSelectedProduct() {
                     let opt = colSelect.options[colSelect.selectedIndex];
@@ -373,6 +396,80 @@
             });
         }
     }
+
+    /**
+     * Initialises a <select> list rendered by the products TV
+     */
+    function initialiseSimpleVariantSelects() {
+        let variantSelector = document.querySelectorAll('.add-to-cart__simplevariant');
+
+        if (variantSelector.length > 0) {
+            variantSelector.forEach(function (variantForm) {
+                let priceDisplay = variantForm.querySelector('.add-to-cart__price'),
+                    stockDisplay = variantForm.querySelector('.add-to-cart__stock'),
+                    skuDisplay = variantForm.querySelector('.add-to-cart__sku'),
+                    variantSelect = variantForm.querySelector('.product-simplevariant__select'),
+                    imageDisplay = document.querySelector('.product-image__img');
+
+                // Probably not needed for simple product variations (i.e. non-matrix) 
+                // but uncomment if required.
+
+                // prodOptions.forEach(function(prodOpt) {
+                //     let name = prodOpt.getAttribute('data-enhanced-name');
+                //     if (name !== '') {
+                //         prodOpt.innerHTML = name;
+                //     }
+                // });
+
+                variantSelect.addEventListener('change', function(){
+                    updateSelectedProduct(variantSelect, priceDisplay, stockDisplay, skuDisplay, imageDisplay)
+                });
+
+                updateSelectedProduct(variantSelect, priceDisplay, stockDisplay, skuDisplay, imageDisplay);
+
+            });
+        }        
+    }
+
+    /**
+     * Swap out the product image and product attributes when a product is selected 
+     * from a supported <option> element of a <select> list containing product variants.
+     * 
+     * @param {HTMLElement} selector 
+     * @param {HTMLElement} priceDisplay 
+     * @param {HTMLElement} stockDisplay 
+     * @param {HTMLElement} skuDisplay 
+     * @param {HTMLElement} imageDisplay 
+     */
+    function updateSelectedProduct(selector, priceDisplay, stockDisplay, skuDisplay, imageDisplay) {
+        let opt = selector.options[selector.selectedIndex];
+        if (opt) {
+            if (priceDisplay) {
+                priceDisplay.innerHTML = opt.getAttribute('data-price-formatted');
+            }
+            if (stockDisplay) {
+                stockDisplay.innerHTML = opt.getAttribute('data-stock');
+            }
+            if (skuDisplay) {
+                skuDisplay.innerHTML = opt.getAttribute('data-sku');
+            }
+            if (imageDisplay) {
+                let image = opt.getAttribute('data-image');
+                if (!image) {
+                    image = imageDisplay.getAttribute('data-original-image');
+                }
+                if (image !== imageDisplay.src) {
+                    let fakeImg = document.createElement('img');
+                    fakeImg.addEventListener('load', function () {
+                        imageDisplay.src = this.src;
+                        this.remove();
+                    });
+                    fakeImg.src = image;
+                }
+            }
+        }
+    }    
+
 
     function updateMiniCart() {
         _request('GET', CommerceConfig.cart_url, {}, _updateMiniCartResponse);
